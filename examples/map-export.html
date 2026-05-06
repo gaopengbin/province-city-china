@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>中国行政区划可视化导出</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#0b1020; color:#eaf0ff; }
+    .layout { display:grid; grid-template-columns: 320px 1fr; min-height:100vh; }
+    .panel { padding:16px; background:#111935; border-right:1px solid #263259; overflow:auto; }
+    .map { min-height:100vh; }
+    .group { margin-bottom:14px; }
+    .group h3 { margin:6px 0; font-size:14px; }
+    .toolbar button { margin:4px 6px 4px 0; padding:8px 10px; border-radius:8px; border:1px solid #3a4f84; background:#1b2950; color:#fff; cursor:pointer; }
+    .toolbar button:hover { background:#2a3e75; }
+    .list { max-height:40vh; overflow:auto; border:1px solid #2b3964; border-radius:8px; padding:8px; }
+    .item { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px; }
+    .muted { opacity:0.8; font-size:12px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="panel">
+    <h2>行政区划导出工具</h2>
+    <p class="muted">点击地图省份可选中/取消；支持按省份筛选城市、区县、乡镇并导出 JSON/CSV。</p>
+
+    <div class="group toolbar">
+      <button id="selectAll">全选省份</button>
+      <button id="clearAll">清空选择</button>
+    </div>
+
+    <div class="group">
+      <h3>已选省份 (<span id="count">0</span>)</h3>
+      <div id="selected" class="list"></div>
+    </div>
+
+    <div class="group toolbar">
+      <button id="exportProvince">导出省级</button>
+      <button id="exportCity">导出地级</button>
+      <button id="exportArea">导出县级</button>
+      <button id="exportTown">导出乡级</button>
+      <button id="exportAll">导出汇总(JSON)</button>
+    </div>
+  </aside>
+  <main>
+    <div id="map" class="map"></div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script type="module">
+  const root = '..';
+  const [province, city, area, town] = await Promise.all([
+    fetch(`${root}/packages/core/dist/province.json`).then(r => r.json()),
+    fetch(`${root}/packages/core/dist/city.json`).then(r => r.json()),
+    fetch(`${root}/packages/core/dist/area.json`).then(r => r.json()),
+    fetch(`${root}/packages/core/dist/town.json`).then(r => r.json()),
+  ]);
+
+  const provinceByName = new Map(province.map(p => [p.name.replace(/省|市|壮族自治区|回族自治区|维吾尔自治区|自治区|特别行政区/g, ''), p]));
+  const selectedCodes = new Set();
+
+  const chart = echarts.init(document.getElementById('map'));
+  const loadChinaMapScript = async () => {
+    const urls = [
+      './china.js',
+      './assets/china.js',
+      'https://unpkg.com/echarts@4.9.0/map/js/china.js',
+      'https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/js/china.js',
+    ];
+    for (const url of urls) {
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = url;
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject();
+          document.head.appendChild(script);
+        });
+        const map = echarts.getMap && echarts.getMap('china');
+        if (map && map.geoJson) return;
+      } catch (e) {}
+    }
+    throw new Error('中国地图加载失败：请确认 examples/china.js 是否存在（离线优先），或检查外网 CDN 可访问性。');
+  };
+  const render = () => {
+    const data = province.map((p) => ({
+      name: p.name,
+      value: selectedCodes.has(p.code) ? 1 : 0,
+      code: p.code
+    }));
+    chart.setOption({
+      tooltip: { trigger: 'item' },
+      visualMap: { show: false, min: 0, max: 1, inRange: { color: ['#36508a', '#5cd0ff'] } },
+      series: [{
+        type: 'map',
+        map: 'china',
+        roam: true,
+        label: { show: true, fontSize: 9, color: '#fff' },
+        emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#31e9c2' } },
+        data,
+      }],
+    });
+    syncList();
+  };
+
+  const syncList = () => {
+    const selected = province.filter(p => selectedCodes.has(p.code));
+    document.getElementById('count').textContent = String(selected.length);
+    const container = document.getElementById('selected');
+    container.innerHTML = selected.map(p => `<div class="item"><input type="checkbox" checked data-code="${p.code}"/> ${p.name} (${p.code})</div>`).join('') || '<div class="muted">暂无选择</div>';
+    container.querySelectorAll('input').forEach((el) => {
+      el.addEventListener('change', () => {
+        selectedCodes.delete(el.dataset.code);
+        render();
+      });
+    });
+  };
+
+  const getExportData = () => {
+    const prefixSet = new Set([...selectedCodes].map(code => code.slice(0, 2)));
+    return {
+      province: province.filter(p => prefixSet.has(p.code.slice(0, 2))),
+      city: city.filter(c => prefixSet.has(c.province)),
+      area: area.filter(a => prefixSet.has(a.province)),
+      town: town.filter(t => prefixSet.has(t.province)),
+    };
+  };
+
+  const download = (filename, content, type) => {
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const toCSV = (rows) => {
+    if (!rows.length) return '';
+    const keys = Object.keys(rows[0]);
+    const esc = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`;
+    return [keys.join(','), ...rows.map(r => keys.map(k => esc(r[k])).join(','))].join('\n');
+  };
+
+  document.getElementById('selectAll').onclick = () => { province.forEach(p => selectedCodes.add(p.code)); render(); };
+  document.getElementById('clearAll').onclick = () => { selectedCodes.clear(); render(); };
+
+  document.getElementById('exportProvince').onclick = () => {
+    const rows = getExportData().province;
+    download('province-selected.csv', toCSV(rows), 'text/csv;charset=utf-8');
+  };
+  document.getElementById('exportCity').onclick = () => {
+    const rows = getExportData().city;
+    download('city-selected.csv', toCSV(rows), 'text/csv;charset=utf-8');
+  };
+  document.getElementById('exportArea').onclick = () => {
+    const rows = getExportData().area;
+    download('area-selected.csv', toCSV(rows), 'text/csv;charset=utf-8');
+  };
+  document.getElementById('exportTown').onclick = () => {
+    const rows = getExportData().town;
+    download('town-selected.csv', toCSV(rows), 'text/csv;charset=utf-8');
+  };
+  document.getElementById('exportAll').onclick = () => {
+    download('china-selected-data.json', JSON.stringify(getExportData(), null, 2), 'application/json;charset=utf-8');
+  };
+
+  chart.on('click', (params) => {
+    const hit = provinceByName.get(String(params.name).replace(/省|市/g, ''));
+    if (!hit) return;
+    if (selectedCodes.has(hit.code)) selectedCodes.delete(hit.code); else selectedCodes.add(hit.code);
+    render();
+  });
+
+  window.addEventListener('resize', () => chart.resize());
+  try {
+    await loadChinaMapScript();
+    render();
+  } catch (error) {
+    document.getElementById('map').innerHTML = `<div style="padding:24px;color:#fff">${error.message}</div>`;
+  }
+</script>
+</body>
+</html>
