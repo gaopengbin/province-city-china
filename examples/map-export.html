@@ -62,35 +62,44 @@
   const selectedCodes = new Set();
 
   const chart = echarts.init(document.getElementById('map'));
-  const loadChinaMapScript = async () => {
-    const urls = [
+  const loadChinaMap = async () => {
+    if (echarts.getMap && echarts.getMap('china')) return;
+    // Try offline-first (local china.js as self-registering script), then CDN script, then GeoJSON CDN
+    const scriptUrls = [
       './china.js',
-      './assets/china.js',
       'https://unpkg.com/echarts@4.9.0/map/js/china.js',
       'https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/js/china.js',
     ];
-    for (const url of urls) {
+    for (const url of scriptUrls) {
       try {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
           script.src = url;
-          script.async = true;
           script.onload = () => resolve();
           script.onerror = () => reject();
           document.head.appendChild(script);
         });
-        const map = echarts.getMap && echarts.getMap('china');
-        if (map && map.geoJson) return;
+        if (echarts.getMap && echarts.getMap('china')) return;
       } catch (e) {}
     }
-    throw new Error('中国地图加载失败：请确认 examples/china.js 是否存在（离线优先），或检查外网 CDN 可访问性。');
+    // Fallback: fetch GeoJSON and register
+    const geojsonUrls = [
+      'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json',
+      'https://fastly.jsdelivr.net/npm/echarts@5/map/json/china.json',
+      'https://cdn.jsdelivr.net/npm/echarts@5/map/json/china.json',
+    ];
+    for (const url of geojsonUrls) {
+      try {
+        const res = await fetch(url, { cache: 'force-cache' });
+        if (!res.ok) continue;
+        const geojson = await res.json();
+        if (geojson && geojson.features) { echarts.registerMap('china', geojson); return; }
+      } catch (e) {}
+    }
+    throw new Error('中国地图加载失败，请检查网络或确认 examples/china.js 是否存在。');
   };
   const render = () => {
-    const data = province.map((p) => ({
-      name: p.name,
-      value: selectedCodes.has(p.code) ? 1 : 0,
-      code: p.code
-    }));
+    const data = province.map(p => ({ name: p.name, value: selectedCodes.has(p.code) ? 1 : 0 }));
     chart.setOption({
       tooltip: { trigger: 'item' },
       visualMap: { show: false, min: 0, max: 1, inRange: { color: ['#36508a', '#5cd0ff'] } },
@@ -177,10 +186,10 @@
 
   window.addEventListener('resize', () => chart.resize());
   try {
-    await loadChinaMapScript();
+    await loadChinaMap();
     render();
   } catch (error) {
-    document.getElementById('map').innerHTML = `<div style="padding:24px;color:#fff">${error.message}</div>`;
+    document.getElementById('map').innerHTML = `<div style="padding:24px;color:#fff;">${error.message}</div>`;
   }
 </script>
 </body>
