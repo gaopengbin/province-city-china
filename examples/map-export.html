@@ -49,6 +49,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/map/js/china.js"></script>
 <script type="module">
   const root = '..';
   const [province, city, area, town] = await Promise.all([
@@ -165,12 +166,16 @@
   });
 
   window.addEventListener('resize', () => chart.resize());
-  try {
-    const geojson = await loadChinaGeoJSON();
-    echarts.registerMap('china', geojson);
+  if (echarts.getMap('china')) {
     render();
-  } catch (error) {
-    document.getElementById('map').innerHTML = `<div style="padding:24px;color:#fff;">${error.message}</div>`;
+  } else {
+    try {
+      const geojson = await loadChinaGeoJSON();
+      echarts.registerMap('china', geojson);
+      render();
+    } catch (error) {
+      document.getElementById('map').innerHTML = `<div style="padding:24px;color:#fff;">${error.message}</div>`;
+    }
   }
 </script>
 </body>
