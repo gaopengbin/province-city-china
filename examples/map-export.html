@@ -93,10 +93,13 @@
         const res = await fetch(url, { cache: 'force-cache' });
         if (!res.ok) continue;
         const geojson = await res.json();
-        if (geojson && geojson.features) { echarts.registerMap('china', geojson); return; }
+        if (geojson && geojson.features) {
+          echarts.registerMap('china', geojson);
+          return;
+        }
       } catch (e) {}
     }
-    throw new Error('中国地图加载失败，请检查网络或确认 examples/china.js 是否存在。');
+    throw new Error('中国地图加载失败，请确认 examples/china.js 是否存在或检查网络连接。');
   };
   const render = () => {
     const data = province.map(p => ({ name: p.name, value: selectedCodes.has(p.code) ? 1 : 0 }));
