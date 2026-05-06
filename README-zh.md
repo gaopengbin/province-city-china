@@ -601,3 +601,15 @@ python3 -m http.server 8080
 - 面板实时展示已选省份。
 - 按选中省份导出省级/地级/县级/乡级 CSV。
 - 一键导出汇总 JSON（`province/city/area/town`）。
+
+### 一键部署到 GitHub Pages
+
+你可以使用仓库内置的 GitHub Actions 自动部署地图示例。
+
+1. 推送代码到 GitHub 仓库。
+2. 在仓库 `Settings -> Pages` 中将 Source 设置为 **GitHub Actions**。
+3. 触发工作流 `.github/workflows/deploy-map-demo.yml`（push 到 `main/master/work` 分支，或手动 `Run workflow`）。
+4. 部署完成后，访问：
+   - `https://<你的用户名>.github.io/<仓库名>/examples/map-export.html`
+
+> 工作流会发布 `examples/` 与 `packages/` 目录，确保页面可以读取 `packages/core/dist/*.json` 数据。
