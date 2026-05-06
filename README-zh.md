@@ -610,6 +610,7 @@ python3 -m http.server 8080
 2. 在仓库 `Settings -> Pages` 中将 Source 设置为 **GitHub Actions**（首次运行若未开启 Pages，工作流会尝试自动启用）。
 3. 触发工作流 `.github/workflows/deploy-map-demo.yml`（push 到 `main/master/work` 分支，或手动 `Run workflow`）。
 4. 部署完成后，访问：
-   - `https://<你的用户名>.github.io/<仓库名>/examples/map-export.html`
+   - 根路径（自动跳转）：`https://<你的用户名>.github.io/<仓库名>/`
+   - 或直接打开：`https://<你的用户名>.github.io/<仓库名>/examples/map-export.html`
 
 > 工作流会发布 `examples/` 与 `packages/` 目录，确保页面可以读取 `packages/core/dist/*.json` 数据。
