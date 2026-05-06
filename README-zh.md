@@ -601,7 +601,7 @@ python3 -m http.server 8080
 - 面板实时展示已选省份。
 - 按选中省份导出省级/地级/县级/乡级 CSV。
 - 一键导出汇总 JSON（`province/city/area/town`）。
-- 地图边界数据自动多源加载（阿里云 GeoJSON / jsDelivr），降低单一 CDN 失效导致黑屏的概率。
+- 地图边界数据自动多源加载，支持离线优先（本地 `examples/china.js`）并回落到公网 CDN（阿里云 GeoJSON / jsDelivr），降低单一源不可用造成的黑屏风险。
 
 ### 一键部署到 GitHub Pages
 

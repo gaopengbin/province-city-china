@@ -62,21 +62,44 @@
   const selectedCodes = new Set();
 
   const chart = echarts.init(document.getElementById('map'));
-  const loadChinaGeoJSON = async () => {
-    const urls = [
+  const loadChinaMap = async () => {
+    if (echarts.getMap && echarts.getMap('china')) return;
+    // Try offline-first (local china.js as self-registering script), then CDN script, then GeoJSON CDN
+    const scriptUrls = [
+      './china.js',
+      'https://unpkg.com/echarts@4.9.0/map/js/china.js',
+      'https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/js/china.js',
+    ];
+    for (const url of scriptUrls) {
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = url;
+          script.onload = () => resolve();
+          script.onerror = () => reject();
+          document.head.appendChild(script);
+        });
+        if (echarts.getMap && echarts.getMap('china')) return;
+      } catch (e) {}
+    }
+    // Fallback: fetch GeoJSON and register
+    const geojsonUrls = [
       'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json',
       'https://fastly.jsdelivr.net/npm/echarts@5/map/json/china.json',
       'https://cdn.jsdelivr.net/npm/echarts@5/map/json/china.json',
     ];
-    for (const url of urls) {
+    for (const url of geojsonUrls) {
       try {
         const res = await fetch(url, { cache: 'force-cache' });
         if (!res.ok) continue;
         const geojson = await res.json();
-        if (geojson && geojson.features) return geojson;
-      } catch (error) {}
+        if (geojson && geojson.features) {
+          echarts.registerMap('china', geojson);
+          return;
+        }
+      } catch (e) {}
     }
-    throw new Error('中国地图边界数据加载失败，请检查网络或 CDN 可用性。');
+    throw new Error('中国地图加载失败，请确认 examples/china.js 是否存在或检查网络连接。');
   };
   const render = () => {
     const data = province.map(p => ({ name: p.name, value: selectedCodes.has(p.code) ? 1 : 0 }));
@@ -166,13 +189,8 @@
 
   window.addEventListener('resize', () => chart.resize());
   try {
-    if (echarts.getMap('china')) {
-      render();
-    } else {
-      const geojson = await loadChinaGeoJSON();
-      echarts.registerMap('china', geojson);
-      render();
-    }
+    await loadChinaMap();
+    render();
   } catch (error) {
     document.getElementById('map').innerHTML = `<div style="padding:24px;color:#fff;">${error.message}</div>`;
   }
